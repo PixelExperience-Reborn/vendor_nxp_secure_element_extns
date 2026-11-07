@@ -39,6 +39,14 @@ Sources: https://github.com/PixelExperience-Reborn/vendor_nxp_secure_element_ext
 - In the NXP 17.07.00 agent's `.rc`, there is an `on fs` trigger and property-triggered update execution; **do not enable the binary** without a complete update provenance/signature/recovery plan. Disabling the module by default means the source file is not an automatically installed executable: the init text by itself does not prove this service runs on mondrian.
 - AOSP17 SE security-r3 hardens `openLogicalChannel` channel index checks for `snxxx/aidl/SecureElement.cpp` and `snxxx/aidl/VirtualISO.cpp`; NXP 17.07.00 vendor snapshot lacks that exact check. A wholesale vendor fork import could regress a reviewed safety fix.
 
+## Completed GitHub source CI — evidence, not hardware validation
+
+[GitHub Actions #42326216221](https://github.com/PixelExperience-Reborn/vendor_nxp_secure_element_extns/actions/runs/42326216221) **SUCCESS**. The actual job logs verified five immutable source **commit/tree** identities: old eSE extns (2022), old SE/P73 HIDL HAL (2023), AOSP17 r1 SE source, official AOSP17 security-r3 SE source, and modern NXP 17.07.00 SE AIDL. The checker proved that the parent old SE HAL links `ese_client`, confirmed the JCOP/DWP downloader source and old APDU/state-file paths, and checked that NXP17's three legacy helper modules, disabled HIDL1.2 service, and stand-alone SE update-agent remain **`enabled: false`**.
+
+It also verified the **exact ten-file official security-r3 source diff**, including the index bounds fix in the two active-style AIDL `openLogicalChannel` implementations. **All 25 AOSP17 staged manifest profiles passed** with independent NFC/SE/OMAPI ownership and the nondefault SE security-r3 candidate unchanged. The whole adversarial manifest test suite passed **44/44**. The output explicitly identifies two **review observations**, not confirmed vulnerabilities: the old `[intf - 1]` path-array access and OSU/reset capabilities within the modern SE implementation.
+
+**Not tested:** Android17 Soong/NDK/OMAPI full build, vendor ABI, SELinux/VINTF assembly, actual eSE/UICC, APDUs or payment, device power/OTA, CTS/VTS, or physical mondrian. `default.xml` and original `seventeen` remain unchanged; no update scripts or firmware have been run.
+
 ## Device and platform promotion requirements
 
 1. Verify the real eSE/NFCC/UICC hardware identity, eSE firmware, OEM stock vendor library contract, kernel nodes, VINTF declared instances and SELinux contexts on the user's exact `mondrian` SKU. Do not assert a P73 device or chip solely from archival code. LF52406 LineageOS 24 trees remain at most exceptional **read-only** hardware evidence, never PE-Reborn product basis.
