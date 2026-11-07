@@ -1,0 +1,81 @@
+name: AOSP17 NXP eSE JCOP legacy and modern SE owner gate
+
+on:
+  push:
+    branches:
+      - audit/a17-nxp-se-extns-jcop-20261107
+    paths:
+      - 'docs/ANDROID_17_NXP_SE_EXTNS_JCOP_AUDIT.md'
+      - 'audit/check_nxp_ese_jcop_aosp17.py'
+      - '.github/workflows/a17-nxp-se-extns-jcop-boundary.yml'
+  pull_request:
+    paths:
+      - 'docs/ANDROID_17_NXP_SE_EXTNS_JCOP_AUDIT.md'
+      - 'audit/check_nxp_ese_jcop_aosp17.py'
+      - '.github/workflows/a17-nxp-se-extns-jcop-boundary.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  pinned-jcop-and-aosp17-se-owners:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated JCOP audit source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Fetch immutable original old eSE client source
+        run: |
+          git fetch -q --no-tags --depth=1 origin \
+            +refs/heads/seventeen:refs/remotes/origin/seventeen
+      - name: Fetch old P73 SE HAL that depends on ese_client
+        run: |
+          git init -q "$RUNNER_TEMP/old-se"
+          git -C "$RUNNER_TEMP/old-se" remote add origin \
+            https://github.com/PixelExperience-Reborn/vendor_nxp_secure_element.git
+          git -C "$RUNNER_TEMP/old-se" fetch -q --no-tags \
+            --filter=blob:none --depth=1 origin \
+            +refs/heads/seventeen:refs/remotes/origin/seventeen
+      - name: Fetch official AOSP17 SE r1 and exact SE security-r3
+        run: |
+          git init -q "$RUNNER_TEMP/aosp17-se"
+          git -C "$RUNNER_TEMP/aosp17-se" remote add origin \
+            https://android.googlesource.com/platform/hardware/nxp/secure_element
+          git -C "$RUNNER_TEMP/aosp17-se" fetch -q --no-tags \
+            --filter=blob:none --depth=1 origin \
+            refs/tags/android-17.0.0_r1:refs/tags/android-17.0.0_r1 \
+            refs/tags/android-security-17.0.0_r3:refs/tags/android-security-17.0.0_r3
+      - name: Fetch NXP 17.07.00 SE AIDL and disabled update agent
+        run: |
+          git init -q "$RUNNER_TEMP/nxp17-se"
+          git -C "$RUNNER_TEMP/nxp17-se" remote add origin \
+            https://github.com/NXPNFCProject/nfcandroid_se_hidlimpl.git
+          git -C "$RUNNER_TEMP/nxp17-se" fetch -q --no-tags \
+            --filter=blob:none --depth=1 origin \
+            +refs/heads/br_ar_17_aosp_mainline:refs/remotes/origin/br_ar_17_aosp_mainline
+      - name: Fetch PE-Reborn independent reviewed manifest (not old device tree)
+        run: |
+          git clone -q --depth=1 \
+            --branch port/a17-aosp17-manifest-20261102 \
+            https://github.com/PixelExperience-Reborn/manifest.git \
+            "$RUNNER_TEMP/manifest"
+      - name: Verify old JCOP DWP updater and AOSP17 AIDL/security boundaries
+        run: |
+          python3 audit/check_nxp_ese_jcop_aosp17.py \
+            "$GITHUB_WORKSPACE" "$RUNNER_TEMP/old-se" \
+            "$RUNNER_TEMP/aosp17-se" "$RUNNER_TEMP/nxp17-se" \
+            "$RUNNER_TEMP/manifest"
+      - name: Run all source graph and adversarial regressions
+        run: |
+          cd "$RUNNER_TEMP/manifest"
+          python3 -m unittest discover -s tools \
+            -p test_aosp17_manifest_entrypoint.py -v
+      - name: State real scope
+        run: |
+          echo "PASS means only immutable source/manifest contracts and unit tests."
+          echo "No JCOP/APDU/SE firmware, no real NFC/SE access or provisioning."
+          echo "NOT TESTED: Soong/NDK, OMAPI runtime, SE eSE/OTA, VINTF,"
+          echo "SELinux, VTS/CTS or physical mondrian NFC and payment."
